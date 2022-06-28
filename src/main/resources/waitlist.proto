@@ -1,0 +1,373 @@
+
+// API v3 public interface declaration
+syntax = "proto3";
+
+package ext.maps.booking.partner.v3;
+
+// +------+------------------------------+----------------------------------+
+// | Verb |          HTTP Path           |      Request/Response Body       |
+// +------+------------------------------+----------------------------------+
+// | GET  | /v3/HealthCheck              | -                                |
+// |      |                              | -                                |
+// +------+------------------------------+----------------------------------+
+// | POST | /v3/BatchGetWaitEstimates    | BatchGetWaitEstimatesRequest     |
+// |      |                              | BatchGetWaitEstimatesResponse    |
+// +------+------------------------------+----------------------------------+
+// | POST | /v3/CreateWaitlistEntry      | CreateWaitlistEntryRequest       |
+// |      |                              | CreateWaitlistEntryResponse      |
+// +------+------------------------------+----------------------------------+
+// | POST | /v3/GetWaitlistEntry         | GetWaitlistEntryRequest          |
+// |      |                              | GetWaitlistEntryResponse         |
+// +------+------------------------------+----------------------------------+
+// | POST | /v3/DeleteWaitlistEntry      | DeleteWaitlistEntryRequest       |
+// |      |                              | google.protobuf.Empty            |
+// +------+------------------------------+----------------------------------+
+
+// BatchGetWaitEstimates method
+
+
+// Batch request for the wait estimates for the specified merchant, service and
+// party sizes.
+message BatchGetWaitEstimatesRequest {
+  // Required. Partner-provided ID for the merchant.
+  string merchant_id = 1;
+
+  // Required. Partner-provided ID for the service.
+  string service_id = 2;
+
+  // Required. The different party sizes WaitEstimates are requested for.
+  // WaitEstimates may differ with the number of people in the party. A single
+  // request will not include duplicate party sizes.
+  repeated int32 party_size = 3;
+}
+
+// Response for the BatchGetWaitEstimates RPC with the wait estimates of the
+// specified merchant, service and party sizes.
+message BatchGetWaitEstimatesResponse {
+  // Required. A status for the waitlist that indicates whether new users can
+  // join and what the reason is if they can’t join. If the waitlist is not
+  // open, all other fields in the BatchGetWaitEstimatesResponse are expected to
+  // be unset.
+  WaitlistStatus waitlist_status = 1;
+
+  // The wait estimates for each party size requested. The response should
+  // contain exactly one wait estimate for each party size sent in the request.
+  // If a party size is not available for some reason, prefer ommitting it
+  // instead of returning an error so that the user will have some options to
+  // choose from.
+  repeated WaitEstimate wait_estimate = 2;
+}
+
+// A status for the waitlist that determines if new users can join and what
+// the reason is if they can’t join.
+enum WaitlistStatus {
+  WAITLIST_STATUS_UNSPECIFIED = 0;
+  // The waitlist is open and is accepting new users.
+  OPEN = 1;
+  // There is currently no wait and users should arrive at the merchant
+  // without joining the waitlist.
+  CLOSED_NO_WAIT = 2;
+  // The waitlist is not currently accepting new users because it is full
+  // or closed for other reasons.
+  CLOSED_OTHER = 3;
+}
+
+
+// The range of time for the current estimated seat time for the user. Estimated
+// seat time range must change over time when the merchant or partner updates
+// their estimates.
+message EstimatedSeatTimeRange {
+  // Required. The lower bound for the range. Expressed as the number of seconds
+  // since the Unix epoch.
+  int64 start_seconds = 1;
+
+  // Required. The upper bound for the range. Expressed as the number of seconds
+  // since the Unix epoch.
+  int64 end_seconds = 2;
+}
+
+// Contains fields measuring how long (in time or # of people) until the
+// user is ready to leave the waitlist and be seated.
+message WaitLength {
+  // The count of how many other parties are ahead of the user in the waitlist.
+  // parties_ahead_count must change over time as parties ahead
+  // in the waitlist are seated or leave the waitlist. Either
+  // parties_ahead_count or estimated_seat_time_range must be populated. Both
+  // should be populated.
+  int32 parties_ahead_count = 1;
+
+  // The range of time that the user is estimated to be seated in. Either
+  // parties_ahead_count or estimated_seat_time_range must be populated. Both
+  // should be populated.
+  EstimatedSeatTimeRange estimated_seat_time_range = 2;
+}
+
+// The confirmation modes used when joining the waitlist.
+enum WaitlistConfirmationMode {
+  // The confirmation mode was not specified.
+  // Synchronous confirmation will be assumed.
+  WAITLIST_CONFIRMATION_MODE_UNSPECIFIED = 0;
+  // Waitlist entries will be confirmed synchronously.
+  WAITLIST_CONFIRMATION_MODE_SYNCHRONOUS = 1;
+  // Waitlist entries will be confirmed asynchronously.
+  WAITLIST_CONFIRMATION_MODE_ASYNCHRONOUS = 2;
+}
+
+// The wait estimate for a particular party size, merchant and service.
+message WaitEstimate {
+  // Required. The party size this wait estimate applies to.
+  int32 party_size = 1;
+
+  // Required. Contains fields measuring how long (in time or # of people) until
+  // the user is ready to leave the waitlist and be seated.
+  WaitLength wait_length = 2;
+
+  // Required. Indicates whether waitlist entries for this wait estimate will be
+  // confirmed synchronously or asynchronously. An UNSPECIFIED value will be
+  // interpreted as synchronous.
+  WaitlistConfirmationMode waitlist_confirmation_mode = 3;
+}
+
+// CreateWaitlistEntry method
+
+
+// Request for a user to join the waitlist.
+//
+// Reserve with Google may retry REST HTTP requests if no response is
+// received. If the exact same CreateWaitlistEntry is received a second time,
+// then the same CreateWaitlistResponse must be returned. A second waitlist
+// entry must not be created.
+message CreateWaitlistEntryRequest {
+  // Required. Partner-provided ID for the merchant.
+  string merchant_id = 1;
+
+  // Required. Partner-provided ID for the service.
+  string service_id = 2;
+
+  // Required. The party size requested for the waitlist entry.
+  int32 party_size = 3;
+
+  // Required. Personal information of the user joining the waitlist.
+  UserInformation user_information = 4;
+
+  // A string from the user which contains any special requests or additional
+  // information that they would like to notify the merchant about.
+  // This will be populated when the user submits an additional request to
+  // Reserve with Google. The partner can disable this functionality at the
+  // service level by setting supports_additional_request to false in the
+  // service feed.
+  string additional_request = 5;
+
+  // Required. Used to differentiate retries from separate requests. If the
+  // exact same CreateWaitlistEntry is received a second time, (including
+  // idempotency_token) then the same CreateWaitlistResponse must be returned.
+  string idempotency_token = 6;
+}
+
+// Response for the CreateWaitlistEntry RPC with the waitlist entry ID or any
+// failing business logic information.
+message CreateWaitlistEntryResponse {
+  // Unique partner-provided ID for the newly created entry in the waitlist.
+  // Required if the waitlist entry was created successfully. Unique for all
+  // time.
+  string waitlist_entry_id = 1;
+
+  WaitlistBusinessLogicFailure waitlist_business_logic_failure = 2;
+}
+
+// GetWaitlistEntry method
+
+
+// Get the waitlist entry corresponding to the provided waitlist entry ID.
+message GetWaitlistEntryRequest {
+  // Required. The partner-provided waitlist entry ID to request info for.
+  string waitlist_entry_id = 1;
+}
+
+// Response with the waitlist entry corresponding to the provided
+// waitlist entry ID.
+message GetWaitlistEntryResponse {
+  // Required. The partner-provided information about a user’s waitlist entry.
+  WaitlistEntry waitlist_entry = 1;
+}
+
+// DeleteWaitlistEntry method
+
+
+// Cancel the user's entry in the waitlist.
+message DeleteWaitlistEntryRequest {
+  // Required. The partner-provided ID for the waitlist entry to be deleted.
+  string waitlist_entry_id = 1;
+}
+
+// WaitlistEntry specification
+
+
+enum WaitlistEntryState {
+  WAITLIST_ENTRY_STATE_UNSPECIFIED = 0;
+  // The waitlist entry was created and the user is currently waiting in the
+  // waitlist.
+  WAITING = 1;
+  // The waitlist entry is awaiting confirmation by the merchant.
+  PENDING_MERCHANT_CONFIRMATION = 8;
+  // The waitlist entry has been canceled by the user. Cancellation for no-shows
+  // should use the NO_SHOW state.
+  CANCELED = 2;
+  // The waitlist entry has been declined by the merchant.
+  DECLINED_BY_MERCHANT = 7;
+  // The merchant is ready to serve the user.
+  SERVICE_READY = 3;
+  // The user has checked in with the host and is waiting to be seated.
+  CHECKED_IN = 4;
+  // The user has arrived and been seated by the merchant.
+  SEATED = 5;
+  // The user did not arrive at the merchant in time and lost their space.
+  NO_SHOW = 6;
+}
+
+// The times at which the waitlist entry changed state.
+message WaitlistEntryStateTimes {
+  // Required. The time at which the waitlist entry was created.
+  // In seconds since Unix epoch.
+  int64 created_time_seconds = 1;
+
+  // The time that the waitlist entry was cancelled. Must be populated
+  // when the waitlist entry has been canceled but not before.
+  // In seconds since Unix epoch.
+  int64 canceled_time_seconds = 2;
+
+  // The time the merchant was ready to serve the user.
+  // service_readied_time_seconds must be populated after the merchant is
+  // ready to serve the user but not before.
+  // In seconds since Unix epoch.
+  int64 service_readied_time_seconds = 3;
+
+  // The actual time the user checked in with the host. checked_in_time must be
+  // populated after the user has checked in with the merchant but not before.
+  // In seconds since Unix epoch.
+  int64 checked_in_time_seconds = 4;
+
+  // The seated time for the user. seated_time_seconds must be populated
+  // when the user has been seated but not before.
+  // In seconds since Unix epoch.
+  int64 seated_time_seconds = 5;
+
+  // The time that the user was marked as a no-show. marked_no_show_time_seconds
+  // must be populated when the user has been marked a no-show but not before.
+  // In seconds since Unix epoch.
+  int64 marked_no_show_time_seconds = 6;
+}
+
+// An entry in the waitlist.
+message WaitlistEntry {
+  // Required.
+  WaitlistEntryState waitlist_entry_state = 1;
+
+  // Required. The times at which the waitlist entry changed state.
+  WaitlistEntryStateTimes waitlist_entry_state_times = 2;
+
+  // Required. Contains fields measuring how long (in time or # of people) until
+  // the user is ready to leave the waitlist and be seated.
+  WaitEstimate wait_estimate = 3;
+}
+
+// WaitlistBusinessLogicFailure specification
+
+
+// Status data that conveys why creating a waitlist entry fails.
+// If there is a business logic error that is not captured here, please
+// reach out to the Reserve with Google team to add it to this list. Other
+// errors should be returned using standard HTTP error codes.
+message WaitlistBusinessLogicFailure {
+  enum Cause {
+    // Default value: Don't use; amounts to an "unknown error"
+    // Unexpected errors must be returned using standard HTTP error codes.
+    CAUSE_UNSPECIFIED = 0;
+
+    // The user has already booked a waitlist entry with the partner.
+    EXISTING_WAITLIST_ENTRY = 1;
+
+    // The requested party size is below the merchant’s minimum.
+    BELOW_MIN_PARTY_SIZE = 2;
+
+    // The requested party size is above the merchant’s maximum.
+    ABOVE_MAX_PARTY_SIZE = 3;
+
+    // The requested merchant is currently closed.
+    MERCHANT_CLOSED = 4;
+
+    // There is currently no wait and the user should walk in without joining
+    // the waitlist.
+    NO_WAIT = 5;
+
+    // The waitlist is at capacity and new users are not being accepted at this
+    // time.
+    WAITLIST_FULL = 6;
+
+    // The country of the phone number is not supported.
+    PHONE_NUMBER_COUNTRY_UNSUPPORTED = 7;
+
+    // The waitlist is closed and not accepting new users. This is expected when
+    // the waitlist enters state CLOSED_OTHER after the user has already seen a
+    // wait estimate.
+    WAITLIST_CLOSED = 8;
+  }
+  // Required. The reason why the booking failed.
+  Cause cause = 1;
+
+  // This optional field is used for the partner to include additional
+  // information for debugging purposes only.
+  string description = 2;
+}
+
+// User specification
+
+// Personal information about the person taking action (e.g. making a
+// booking, an order, or creates a parking session).
+message UserInformation {
+
+  // Unique ID of the user to the partner, chosen by Reserve with Google.
+  // (required)
+  string user_id = 1;
+
+  // Given name of the user (maximum 40 characters) (required)
+  string given_name = 2;
+
+  // Family name of the user (maximum 40 characters) (required)
+  string family_name = 3;
+
+  // Address of the user (optional)
+  PostalAddress address = 4;
+
+  // Phone number of the user (required)
+  // Consistent with the international definition in ITU-T E.123 recommendation.
+  // However, local conventions are also followed, such as using '-' instead of
+  // a space as separator. For example, a phone number in the US can be
+  // written as '+1 415-736-0000'
+  string telephone = 5;
+
+  // Email address of the user (required except for waitlists)
+  string email = 6;
+
+  // User's language code, in IETF BCP 47 format. It is sent only if a partner
+  // is allowed to use this feature. Please contact Reserve with Google team
+  // to be added to the allowlist and receive this code. (optional)
+  string language_code = 7;
+
+  reserved 8;
+}
+
+// The postal address for a merchant.
+message PostalAddress {
+  // The country, using ISO 3166-1 alpha-2 country code, e.g. "US" (required)
+  string country = 1;
+  // The locality/city, e.g. "Mountain View". (required)
+  string locality = 2;
+  // The region/state/province, e.g. "CA". This field is only required in
+  // countries where region is commonly a part of the address. (optional)
+  string region = 3;
+  // The postal code, e.g. "94043". (required)
+  string postal_code = 4;
+  // The street address, e.g. "1600 Amphitheatre Pkwy". (required)
+  string street_address = 5;
+}

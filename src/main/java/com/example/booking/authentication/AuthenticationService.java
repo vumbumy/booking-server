@@ -31,12 +31,19 @@
 
 package com.example.booking.authentication;
 
-import java.io.IOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.StringTokenizer;
 
+
 /** Check the credentials by validates the data included in authorization headers. */
 public class AuthenticationService {
+
+  Logger logger = LoggerFactory.getLogger(AuthenticationService.class);
+
   // TODO(partner): set your user name and password
   private static String USERNAME = "admin";
   private static String PASSWORD = "password";
@@ -48,18 +55,16 @@ public class AuthenticationService {
     // header value format will be "Basic encoded string" for Basic
     // authentication. Example "Basic YWRtaW46YWRtaW4="
     final String encodedUserPassword = credential.replaceFirst("Basic" + " ", "");
-    String usernameAndPassword = null;
-    try {
-      byte[] decodedBytes = Base64.getDecoder().decode(encodedUserPassword);
-      usernameAndPassword = new String(decodedBytes, "UTF-8");
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
+    byte[] decodedBytes = Base64.getDecoder().decode(encodedUserPassword);
+
+    String usernameAndPassword = new String(decodedBytes, StandardCharsets.UTF_8);
+
     final StringTokenizer tokenizer = new StringTokenizer(usernameAndPassword, ":");
     final String username = tokenizer.nextToken();
     final String password = tokenizer.nextToken();
 
-    boolean authenticationStatus = USERNAME.equals(username) && PASSWORD.equals(password);
-    return authenticationStatus;
+    logger.info("authenticate {} / {}", username, password);
+
+    return USERNAME.equals(username) && PASSWORD.equals(password);
   }
 }
